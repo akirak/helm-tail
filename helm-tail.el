@@ -40,6 +40,7 @@
 ;; TODO: Limit the number of candidates in helm-source-kill-ring
 (defvar helm-tail-sources
   '(helm-tail-source-backtrace
+    helm-tail-source-compilation
     helm-tail-source-warnings
     helm-tail-source-messages
     ;; helm-source-kill-ring
@@ -50,6 +51,11 @@
 
 (defcustom helm-tail-messages-lines 5
   "Number of lines from *Messages*."
+  :type 'number
+  :group 'helm-tail)
+
+(defcustom helm-tail-compilation-lines 2
+  "Number of lines from *compilation*."
   :type 'number
   :group 'helm-tail)
 
@@ -69,6 +75,12 @@
   (helm-build-sync-source "Backtrace"
     :candidates
     (lambda () (helm-tail--buffer-contents "*Backtrace*"))))
+
+(defvar helm-tail-source-compilation
+  (helm-build-sync-source "Compilation"
+    :candidates
+    (lambda () (helm-tail--buffer-tail "*compilation*"
+                                       helm-tail-compilation-lines))))
 
 ;;;; Utility functions
 (defmacro helm-tail--when-buffer (bufname &rest progn)
