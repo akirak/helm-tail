@@ -47,7 +47,10 @@
     ))
 
 ;;;;; Custom variables
-(defcustom helm-tail-default-lines 5)
+(defcustom helm-tail-default-lines 5
+  "Default number of lines displayed using `helm-tail--buffer-tail'."
+  :type 'number
+  :group 'helm-tail)
 
 (defcustom helm-tail-messages-lines 5
   "Number of lines from *Messages*."
