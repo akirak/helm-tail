@@ -87,21 +87,25 @@
 
 ;;;; Utility functions
 (defmacro helm-tail--when-buffer (bufname &rest progn)
+  "If a buffer named BUFNAME exists, evaluate PROGN within the buffer."
   (declare (indent 1))
   `(when-let ((buf (get-buffer ,bufname)))
      (with-current-buffer buf
        ,@progn)))
 
 (defun helm-tail--buffer-contents (bufname)
+  "If a buffer named BUFNAME exists, return its content."
   (helm-tail--when-buffer bufname
     (list (buffer-string))))
 
 (defun helm-tail--buffer-contents-as-lines (bufname)
+  "If a buffer named BUFNAME exists, return its content as a list of strings."
   (helm-tail--when-buffer bufname
     (split-string (buffer-string)
                   "\n")))
 
 (defun helm-tail--buffer-tail (bufname &optional nlines)
+  "If a buffer named BUFNAME exists, return its last NLINES as a list."
   (helm-tail--when-buffer bufname
     (nreverse
      (split-string (save-excursion
@@ -116,6 +120,7 @@
 
 ;;;###autoload
 (defun helm-tail ()
+  "Display recent output of common special buffers."
   (interactive)
   (helm :sources helm-tail-sources
         :buffer "*helm tail*"))
