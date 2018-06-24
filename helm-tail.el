@@ -5,6 +5,7 @@
 ;; Author: Akira Komamura <akira.komamura@gmail.com>
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "25.1") (helm "2.7.0"))
+;; Keywords: maint tools
 ;; URL: https://github.com/akirak/helm-tail
 
 ;; This file is not part of GNU Emacs.
