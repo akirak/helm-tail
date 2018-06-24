@@ -36,18 +36,16 @@
 ;; For helm-source-kill-ring
 ;; (require 'helm-ring)
 
-;;;; Variables
-
-;; TODO: Limit the number of candidates in helm-source-kill-ring
-(defvar helm-tail-sources
+;;;; Custom variables
+(defcustom helm-tail-sources
   '(helm-tail-source-backtrace
     helm-tail-source-compilation
     helm-tail-source-warnings
-    helm-tail-source-messages
-    ;; helm-source-kill-ring
-    ))
+    helm-tail-source-messages)
+  "List of helm sources for `helm-tail'."
+  :type '(repeat symbol)
+  :group 'helm-tail)
 
-;;;;; Custom variables
 (defcustom helm-tail-default-lines 5
   "Default number of lines displayed using `helm-tail--buffer-tail'."
   :type 'number
