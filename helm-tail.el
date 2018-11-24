@@ -32,7 +32,7 @@
 
 ;;; Code:
 
-(require 'helm)
+(require 'helm-source)
 ;; For helm-source-kill-ring
 ;; (require 'helm-ring)
 
