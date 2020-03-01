@@ -3,7 +3,7 @@
 ;; Copyright (C) 2018 by Akira Komamura
 
 ;; Author: Akira Komamura <akira.komamura@gmail.com>
-;; Version: 0.1.0
+;; Version: 0.2-pre
 ;; Package-Requires: ((emacs "25.1") (helm "2.7.0"))
 ;; Keywords: maint tools
 ;; URL: https://github.com/akirak/helm-tail
@@ -32,97 +32,131 @@
 
 ;;; Code:
 
+(require 'pcase)
+(require 'cl-lib)
 (require 'helm-source)
-;; For helm-source-kill-ring
-;; (require 'helm-ring)
 
-;;;; Custom variables
-(defcustom helm-tail-sources
-  '(helm-tail-source-backtrace
-    helm-tail-source-compilation
-    helm-tail-source-warnings
-    helm-tail-source-messages)
-  "List of helm sources for `helm-tail'."
-  :type '(repeat symbol)
+(defgroup helm-tail nil
+  "Helm for browsing contents of message buffers.")
+
+(defcustom helm-tail-actions
+  `(("Visit" . helm-tail-visit-action)
+    ("Copy" . helm-tail-copy-action)
+    ;; TODO: Add org-capture action
+    ;; TODO: Add web search action
+    )
+  "Alist of actions in the Helm sources."
+  :type 'alist)
+
+(defface helm-tail-highlight '((t :inherit highlight))
+  "Face for highlighting a line."
   :group 'helm-tail)
 
-(defcustom helm-tail-default-lines 5
-  "Default number of lines displayed using `helm-tail--buffer-tail'."
-  :type 'number
+;; TODO: Add a keymap
+
+;; TODO: Add a command to kill the original buffer of the helm source
+
+(defclass helm-tail-class (helm-source-sync)
+  ((lines :initarg :lines
+          :type number
+          :custom 'number
+          :initform 8
+          :documentation "Number of lines displayed in Helm.")
+   (buffer :initarg :buffer
+           :type (or string buffer)
+           :custom 'string
+           :documentation "Name of the buffer.")
+   (candidates :initform #'helm-tail-candidates)
+   (action :initform helm-tail-actions)))
+
+(cl-defun helm-tail-candidates (&optional (buffer (helm-attr 'buffer))
+                                 (lines (helm-attr 'lines)))
+  (let ((target-buffer (cl-etypecase buffer
+                         (string (get-buffer buffer))
+                         (buffer buffer))))
+    (when (and target-buffer (buffer-live-p target-buffer))
+      (pcase-let ((`(,beg . ,str)
+                   (with-current-buffer target-buffer
+                     (save-excursion
+                       (save-restriction
+                         (widen)
+                         (goto-char (point-max))
+                         (beginning-of-line (- lines))
+                         (cons (point) (buffer-substring (point) (point-max))))))))
+        (cl-loop for line in (cl-remove-if #'string-empty-p (split-string str "\n" nil))
+                 with point = beg
+                 with result = nil
+                 collect (list line
+                               :point point
+                               :buffer target-buffer
+                               :content (substring-no-properties line))
+                 into result
+                 do (cl-incf point (length line))
+                 finally return (nreverse result))))))
+
+(defvar helm-tail-display-window nil)
+
+(defun helm-tail-visit-action (plist)
+  (let* ((point (plist-get plist :point))
+         (buffer (plist-get plist :buffer))
+         (window (setq helm-tail-display-window
+                       (or (get-buffer-window buffer)
+                           helm-tail-display-window
+                           (get-buffer-window helm-current-buffer)))))
+    (set-window-buffer window buffer)
+    (with-selected-window window
+      (remove-overlays (point-min) (point-max) 'helm-tail-highlight t)
+      (mapc (lambda (selection-plist)
+              (goto-char (plist-get selection-plist :point))
+              (let ((ol (make-overlay (line-beginning-position)
+                                      (min (point-max) (1+ (line-end-position))))))
+                (overlay-put ol 'helm-tail-highlight t)
+                (overlay-put ol 'face 'helm-tail-highlight)))
+            (helm-marked-candidates))
+      (goto-char point)
+      (push-mark)
+      (recenter))))
+
+(defun helm-tail-copy-action (_)
+  (kill-new (mapconcat (lambda (plist) (plist-get plist :content))
+                       (nreverse (helm-marked-candidates))
+                       "\n")))
+
+(defcustom helm-tail-source-alist
+  '(("*Flycheck errors*")
+    ("*Backtrace*")
+    ("*compilation*" :lines 2)
+    ("*Compile-Log*")
+    ("*Warnings*")
+    ("*Messages*"))
+  "Alist of buffers to display in `helm-tail'."
+  :type '(alist)
   :group 'helm-tail)
-
-(defcustom helm-tail-messages-lines 5
-  "Number of lines from *Messages*."
-  :type 'number
-  :group 'helm-tail)
-
-(defcustom helm-tail-compilation-lines 2
-  "Number of lines from *compilation*."
-  :type 'number
-  :group 'helm-tail)
-
-;;;;; Sources
-
-(defvar helm-tail-source-messages
-  (helm-build-sync-source "Messages"
-    :candidates
-    (lambda () (helm-tail--buffer-tail "*Messages*" helm-tail-messages-lines))))
-
-(defvar helm-tail-source-warnings
-  (helm-build-sync-source "Warnings"
-    :candidates
-    (lambda () (helm-tail--buffer-tail "*Warnings*"))))
-
-(defvar helm-tail-source-backtrace
-  (helm-build-sync-source "Backtrace"
-    :candidates
-    (lambda () (helm-tail--buffer-contents "*Backtrace*"))))
-
-(defvar helm-tail-source-compilation
-  (helm-build-sync-source "Compilation"
-    :candidates
-    (lambda () (helm-tail--buffer-tail "*compilation*"
-                                       helm-tail-compilation-lines))))
-
-;;;; Utility functions
-(defmacro helm-tail--when-buffer (bufname &rest progn)
-  "If a buffer named BUFNAME exists, evaluate PROGN within the buffer."
-  (declare (indent 1))
-  `(when-let ((buf (get-buffer ,bufname)))
-     (with-current-buffer buf
-       ,@progn)))
-
-(defun helm-tail--buffer-contents (bufname)
-  "If a buffer named BUFNAME exists, return its content."
-  (helm-tail--when-buffer bufname
-    (list (buffer-string))))
-
-(defun helm-tail--buffer-contents-as-lines (bufname)
-  "If a buffer named BUFNAME exists, return its content as a list of strings."
-  (helm-tail--when-buffer bufname
-    (split-string (buffer-string)
-                  "\n")))
-
-(defun helm-tail--buffer-tail (bufname &optional nlines)
-  "If a buffer named BUFNAME exists, return its last NLINES as a list."
-  (helm-tail--when-buffer bufname
-    (nreverse
-     (split-string (save-excursion
-                     (buffer-substring (goto-char (point-max))
-                                       (progn (beginning-of-line
-                                               (- (or nlines
-                                                      helm-tail-default-lines)))
-                                              (point))))
-                   "\n"))))
-
-;;;; Command
 
 ;;;###autoload
 (defun helm-tail ()
   "Display recent output of common special buffers."
   (interactive)
-  (helm :sources helm-tail-sources
-        :buffer "*helm tail*"))
+  (setq helm-tail-display-window nil)
+  (let ((source-alist (cl-remove-if-not
+                       (lambda (cell)
+                         (let ((buffer (get-buffer (car cell))))
+                           (and buffer
+                                (buffer-live-p buffer)
+                                (> (buffer-size buffer) 0))))
+                       helm-tail-source-alist)))
+    (helm :prompt (format "%s: " (string-join (mapcar #'car source-alist)
+                                              ", "))
+          :sources (mapcar (pcase-lambda (`(,buffer . ,plist))
+                             (apply #'helm-make-source
+                                    (cl-etypecase buffer
+                                      (string buffer)
+                                      (buffer (buffer-name buffer)))
+                                    'helm-tail-class
+                                    :buffer buffer
+                                    plist))
+                           source-alist)
+          :buffer "*helm tail*")))
 
 (provide 'helm-tail)
 ;;; helm-tail.el ends here
