@@ -52,7 +52,22 @@
   "Face for highlighting a line."
   :group 'helm-tail)
 
+(defcustom helm-tail-source-alist
+  '(("*Flycheck errors*")
+    ("*Backtrace*")
+    ("*compilation*" :lines 2)
+    ("*Compile-Log*")
+    ("*Warnings*")
+    ("*Messages*"))
+  "Alist of buffers to display in `helm-tail'."
+  :type '(alist)
+  :group 'helm-tail)
+
 ;; TODO: Add a keymap
+(defvar helm-tail-map
+  (let ((m (make-composed-keymap nil helm-map)))
+    (define-key m (kbd "C-c C-d") #'helm-tail-kill-source-buffer)
+    m))
 
 ;; TODO: Add a command to kill the original buffer of the helm source
 
@@ -66,6 +81,7 @@
            :type (or string buffer)
            :custom 'string
            :documentation "Name of the buffer.")
+   (keymap :initform helm-tail-map)
    (candidates :initform #'helm-tail-candidates)
    (action :initform helm-tail-actions)))
 
@@ -122,16 +138,15 @@
                        (nreverse (helm-marked-candidates))
                        "\n")))
 
-(defcustom helm-tail-source-alist
-  '(("*Flycheck errors*")
-    ("*Backtrace*")
-    ("*compilation*" :lines 2)
-    ("*Compile-Log*")
-    ("*Warnings*")
-    ("*Messages*"))
-  "Alist of buffers to display in `helm-tail'."
-  :type '(alist)
-  :group 'helm-tail)
+(defun helm-tail-kill-source-buffer ()
+  (interactive)
+  (let* ((buffer (alist-get 'buffer (helm-get-current-source)))
+         (buffer-name (cl-etypecase buffer
+                        (string buffer)
+                        (buffer (buffer-name buffer)))))
+    (when (yes-or-no-p (format "Kill buffer %s?" buffer-name))
+      (kill-buffer buffer)
+      (helm-refresh))))
 
 ;;;###autoload
 (defun helm-tail ()
