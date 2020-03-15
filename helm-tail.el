@@ -148,29 +148,38 @@
       (kill-buffer buffer)
       (helm-refresh))))
 
+(defun helm-tail-source-alist ()
+  "Return live, non-empty buffer entries in `helm-tail-source-alist'."
+  (cl-remove-if-not (lambda (cell)
+                      (let ((buffer (get-buffer (car cell))))
+                        (and buffer
+                             (buffer-live-p buffer)
+                             (> (buffer-size buffer) 0))))
+                    helm-tail-source-alist))
+
+(defun helm-tail-build-sources (source-alist)
+  "Build helm sources from a result of `helm-tail-source-alist'."
+  (mapcar (pcase-lambda (`(,buffer . ,plist))
+            (apply #'helm-make-source
+                   (cl-etypecase buffer
+                     (string buffer)
+                     (buffer (buffer-name buffer)))
+                   'helm-tail-class
+                   :buffer buffer
+                   plist))
+          source-alist))
+
 ;;;###autoload
 (defun helm-tail ()
   "Display recent output of common special buffers."
   (interactive)
   (setq helm-tail-display-window nil)
-  (let ((source-alist (cl-remove-if-not
-                       (lambda (cell)
-                         (let ((buffer (get-buffer (car cell))))
-                           (and buffer
-                                (buffer-live-p buffer)
-                                (> (buffer-size buffer) 0))))
-                       helm-tail-source-alist)))
-    (helm :prompt (format "%s: " (string-join (mapcar #'car source-alist)
-                                              ", "))
-          :sources (mapcar (pcase-lambda (`(,buffer . ,plist))
-                             (apply #'helm-make-source
-                                    (cl-etypecase buffer
-                                      (string buffer)
-                                      (buffer (buffer-name buffer)))
-                                    'helm-tail-class
-                                    :buffer buffer
-                                    plist))
-                           source-alist)
+  (let* ((source-alist (helm-tail-source-alist))
+         (prompt (format "%s: " (string-join (mapcar #'car source-alist)
+                                             ", ")))
+         (sources (helm-tail-build-sources source-alist)))
+    (helm :prompt prompt
+          :sources sources
           :buffer "*helm tail*")))
 
 (provide 'helm-tail)
