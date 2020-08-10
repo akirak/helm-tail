@@ -36,15 +36,19 @@
 (require 'cl-lib)
 (require 'helm-source)
 
+(defvar helm-map)
+
 (defgroup helm-tail nil
-  "Helm for browsing contents of message buffers.")
+  "Helm for browsing contents of message buffers."
+  :group 'tools
+  :group 'maint
+  :group 'helm)
 
 (defcustom helm-tail-actions
+  ;; TODO: Add org-capture action
+  ;; TODO: Add web search action
   `(("Visit" . helm-tail-visit-action)
-    ("Copy" . helm-tail-copy-action)
-    ;; TODO: Add org-capture action
-    ;; TODO: Add web search action
-    )
+    ("Copy" . helm-tail-copy-action))
   "Alist of actions in the Helm sources."
   :type 'alist)
 
@@ -86,7 +90,8 @@
    (action :initform helm-tail-actions)))
 
 (cl-defun helm-tail-candidates (&optional (buffer (helm-attr 'buffer))
-                                 (lines (helm-attr 'lines)))
+                                          (lines (helm-attr 'lines)))
+  "Generate candidates for the class."
   (let ((target-buffer (cl-etypecase buffer
                          (string (get-buffer buffer))
                          (buffer buffer))))
@@ -113,6 +118,7 @@
 (defvar helm-tail-display-window nil)
 
 (defun helm-tail-visit-action (plist)
+  "Visit an item according to PLIST."
   (let* ((point (plist-get plist :point))
          (buffer (plist-get plist :buffer))
          (window (setq helm-tail-display-window
@@ -134,11 +140,13 @@
       (recenter))))
 
 (defun helm-tail-copy-action (_)
+  "Copy the text of marked candidates."
   (kill-new (mapconcat (lambda (plist) (plist-get plist :content))
                        (nreverse (helm-marked-candidates))
                        "\n")))
 
 (defun helm-tail-kill-source-buffer ()
+  "Kill the source buffer of the current candidate."
   (interactive)
   (let* ((buffer (alist-get 'buffer (helm-get-current-source)))
          (buffer-name (cl-etypecase buffer
@@ -158,7 +166,9 @@
                     helm-tail-source-alist))
 
 (defun helm-tail-build-sources (source-alist)
-  "Build helm sources from a result of `helm-tail-source-alist'."
+  "Build helm sources from a result of `helm-tail-source-alist'.
+
+SOURCE-ALIST is the result of the function."
   (mapcar (pcase-lambda (`(,buffer . ,plist))
             (apply #'helm-make-source
                    (cl-etypecase buffer
