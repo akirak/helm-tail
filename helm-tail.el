@@ -35,8 +35,10 @@
 (require 'pcase)
 (require 'cl-lib)
 (require 'helm-source)
+(require 'goto-addr)
 
 (defvar helm-map)
+(defvar goto-address-url-regexp)
 
 (defgroup helm-tail nil
   "Helm for browsing contents of message buffers."
@@ -48,7 +50,11 @@
   ;; TODO: Add org-capture action
   ;; TODO: Add web search action
   `(("Visit" . helm-tail-visit-action)
-    ("Copy" . helm-tail-copy-action))
+    ("Copy" . helm-tail-copy-action)
+    ("Browse URL" . helm-tail-browse-url-action)
+    ("Find file" . helm-tail-find-file-action)
+    ("Copy URL" . helm-tail-copy-url-action)
+    ("Copy symbol" . helm-tail-copy-symbol-action))
   "Alist of actions in the Helm sources."
   :type 'alist)
 
@@ -144,6 +150,59 @@
   (kill-new (mapconcat (lambda (plist) (plist-get plist :content))
                        (nreverse (helm-marked-candidates))
                        "\n")))
+
+(defcustom helm-tail-url-regexp goto-address-url-regexp
+  "Regular expression possibly matching a URL."
+  :type 'string)
+
+(defun helm-tail--with-url (func plist)
+  "Call FUNC on a URL in the content from PLIST."
+  (let ((content (plist-get plist :content)))
+    (save-match-data
+      (if (string-match helm-tail-url-regexp content)
+          (funcall func (match-string 0 content))
+        (user-error "No url is found in the line")))))
+
+(defun helm-tail-browse-url-action (plist)
+  "Browse a url contained in the PLIST from the line."
+  (helm-tail--with-url #'browse-url plist))
+
+(defun helm-tail-copy-url-action (plist)
+  "Browse a url contained in the PLIST from the line."
+  (helm-tail--with-url #'kill-new plist))
+
+(defconst helm-tail-file-name-regexp
+  ;; TODO: Support Windows path
+  (rx symbol-start (any "/~") (+ (not (any space ":"))) (not ".")))
+
+(defun helm-tail-find-file-action (plist)
+  "Visit a file contained in the PLIST from the line."
+  (let ((content (plist-get plist :content)))
+    (save-match-data
+      (if (string-match helm-tail-file-name-regexp content)
+          (find-file (match-string 0 content))
+        (user-error "No file is found in the line")))))
+
+(defun helm-tail-browse-url-action (plist)
+  "Browse a url contained in the PLIST from the line."
+  (let ((content (plist-get plist :content)))
+    (save-match-data
+      (if (string-match goto-address-url-regexp content)
+          (browse-url (match-string 0 content))
+        (user-error "No url is found in the line")))))
+
+(defun helm-tail-copy-symbol-action (plist)
+  "Browse a url contained in the PLIST from the line."
+  (let ((content (plist-get plist :content))
+        matches)
+    (save-match-data
+      (with-temp-buffer
+        (insert content)
+        (goto-char (point-min))
+        (while (re-search-forward (rx symbol-start (+? anything) symbol-end) nil t)
+          (push (match-string-no-properties 0) matches))))
+    (kill-new (completing-read (format "Matches (from %s): " content)
+                               (nreverse matches)))))
 
 (defun helm-tail-kill-source-buffer ()
   "Kill the source buffer of the current candidate."
