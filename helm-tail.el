@@ -173,7 +173,7 @@
 
 (defconst helm-tail-file-name-regexp
   ;; TODO: Support Windows path
-  (rx symbol-start (any "/~") (+ (not (any space ":"))) (not ".")))
+  (rx (any "/~") (+ (not (any space ":"))) (not ".")))
 
 (defun helm-tail-find-file-action (plist)
   "Visit a file contained in the PLIST from the line."
